@@ -1,4 +1,7 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Play } from '@phosphor-icons/react';
+import { useForm } from 'react-hook-form';
+import * as zod from 'zod';
 import {
   ButtonStyled,
   CountdownStyled,
@@ -9,10 +12,36 @@ import {
   TaskInputStyled,
 } from './styles';
 
+const formSchema = zod.object({
+  task: zod.string().min(1, 'Informe a tarefa'),
+  minutesAmount: zod
+    .number()
+    .min(5, 'O ciclo precisa ser de no minímo 5 minutos.')
+    .max(60, 'O ciclo precisa ser de no máximo 60 minutos.'),
+});
+
+type FormDataProps = zod.infer<typeof formSchema>;
+
 export default function Home() {
+  const { register, handleSubmit, watch, reset } = useForm<FormDataProps>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      task: '',
+      minutesAmount: 0,
+    },
+  });
+
+  const onSubmit = (data: FormDataProps) => {
+    console.log(data);
+    reset();
+  };
+
+  const task = watch('task');
+  const isSubmitDisabled = !task;
+
   return (
     <HomeSyled>
-      <form action="">
+      <form onSubmit={handleSubmit(onSubmit)} action="">
         <FormStyled>
           <label htmlFor="task">Vou trabalhar em</label>
           <TaskInputStyled
@@ -20,6 +49,7 @@ export default function Home() {
             id="task"
             list="task-suggestions"
             placeholder="Dê um nome para o seu projeto"
+            {...register('task')}
           />
 
           <datalist id="task-suggestions">
@@ -36,6 +66,7 @@ export default function Home() {
             step={5}
             min={5}
             max={60}
+            {...register('minutesAmount', { valueAsNumber: true })}
           />
 
           <span>minutos.</span>
@@ -49,7 +80,7 @@ export default function Home() {
           <span>0</span>
         </CountdownStyled>
 
-        <ButtonStyled type="submit">
+        <ButtonStyled type="submit" disabled={isSubmitDisabled}>
           <Play size={24} />
           Começar
         </ButtonStyled>
