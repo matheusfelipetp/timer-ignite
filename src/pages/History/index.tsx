@@ -27,7 +27,7 @@ export default function History() {
                 <td>{elem.task}</td>
                 <td>{elem.minutesAmount} minutos</td>
                 <td>
-                  {formatDistanceToNow(elem.startDate, {
+                  {formatDistanceToNow(new Date(elem.startDate), {
                     addSuffix: true,
                     locale: ptBR,
                   })}

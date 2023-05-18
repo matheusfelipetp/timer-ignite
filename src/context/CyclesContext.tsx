@@ -1,6 +1,18 @@
 import { differenceInSeconds } from 'date-fns';
-import { ReactNode, createContext, useEffect, useState } from 'react';
+import {
+  ReactNode,
+  createContext,
+  useEffect,
+  useReducer,
+  useState,
+} from 'react';
 import { ICycle } from '../pages/Home';
+import {
+  addNewCycleAction,
+  finishCurrentCycleAction,
+  interruptCurrentCycleAction,
+} from '../reducers/cycles/actions';
+import { cyclesReducer } from '../reducers/cycles/reducer';
 
 interface ICreateNewCycle {
   task: string;
@@ -10,10 +22,9 @@ interface ICreateNewCycle {
 interface ICyclesContext {
   activeCycle: ICycle | undefined;
   cycles: ICycle[];
-  activeCycleId: string | null;
   minutes: string;
   seconds: string;
-  cycleFinished: () => void;
+  cycleInterrupt: () => void;
   createNewCycle: (data: ICreateNewCycle) => void;
 }
 
@@ -24,11 +35,39 @@ interface ICyclesProvider {
 export const CyclesContext = createContext({} as ICyclesContext);
 
 export const CyclesProvider = ({ children }: ICyclesProvider) => {
-  const [cycles, setCycles] = useState<ICycle[]>([]);
-  const [activeCycleId, setActiveCycleId] = useState<string | null>(null);
-  const [amountSecondsPassed, setAmountSecondsPassed] = useState(0);
+  const [cyclesState, dispatch] = useReducer(
+    cyclesReducer,
+    {
+      cycles: [],
+      activeCycleId: null,
+    },
+    (initialState) => {
+      const storedStateAsJSON = localStorage.getItem('@timer:cycles-1.0.0');
+
+      if (storedStateAsJSON) {
+        return JSON.parse(storedStateAsJSON);
+      }
+
+      return initialState;
+    },
+  );
+
+  const { cycles, activeCycleId } = cyclesState;
 
   const activeCycle = cycles.find((elem) => elem.id === activeCycleId);
+
+  const [amountSecondsPassed, setAmountSecondsPassed] = useState(() => {
+    if (activeCycle) {
+      return differenceInSeconds(new Date(), new Date(activeCycle.startDate));
+    }
+
+    return 0;
+  });
+
+  useEffect(() => {
+    const stateJSON = JSON.stringify(cyclesState);
+    localStorage.setItem('@timer:cycles-1.0.0', stateJSON);
+  }, [cyclesState]);
 
   const totalSeconds = activeCycle ? activeCycle.minutesAmount * 60 : 0;
   const currentSeconds = activeCycle ? totalSeconds - amountSecondsPassed : 0;
@@ -47,23 +86,12 @@ export const CyclesProvider = ({ children }: ICyclesProvider) => {
       startDate: new Date(),
     };
 
-    setCycles((prev) => [...prev, newCycle]);
-    setActiveCycleId(newCycle.id);
+    dispatch(addNewCycleAction(newCycle));
     setAmountSecondsPassed(0);
   };
 
-  const cycleFinished = () => {
-    setCycles((prev) =>
-      prev.map((elem) => {
-        if (elem.id === activeCycleId) {
-          return { ...elem, interruptedDate: new Date() };
-        } else {
-          return elem;
-        }
-      }),
-    );
-
-    setActiveCycleId(null);
+  const cycleInterrupt = () => {
+    dispatch(interruptCurrentCycleAction());
   };
 
   useEffect(() => {
@@ -81,19 +109,11 @@ export const CyclesProvider = ({ children }: ICyclesProvider) => {
       interval = setInterval(() => {
         const difference = differenceInSeconds(
           new Date(),
-          activeCycle.startDate,
+          new Date(activeCycle.startDate),
         );
 
         if (difference >= totalSeconds) {
-          setCycles((prev) =>
-            prev.map((elem) => {
-              if (elem.id === activeCycleId) {
-                return { ...elem, finishedDate: new Date() };
-              } else {
-                return elem;
-              }
-            }),
-          );
+          dispatch(finishCurrentCycleAction());
 
           setAmountSecondsPassed(totalSeconds);
           clearInterval(interval);
@@ -113,10 +133,9 @@ export const CyclesProvider = ({ children }: ICyclesProvider) => {
       value={{
         activeCycle,
         cycles,
-        activeCycleId,
         minutes,
         seconds,
-        cycleFinished,
+        cycleInterrupt,
         createNewCycle,
       }}
     >
